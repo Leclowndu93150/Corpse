@@ -1,0 +1,65 @@
+Hyxin provides a Mixin environment for the game Hytale. It enables developers to modify, extend, and inject behavior into Hytale's codebase without directly modifying game files.
+
+Features
+Mixin is a trait/mixin framework for Java that allows plugin developers to modify the game code without directly patching or modifying your game files. This is a very powerful tool for developers, allowing them to add hooks, modify game logic, and empowers them to do things they would not be otherwise able to do.
+
+Hyxin provides both FabricMC's Mixin Fork and LlamaLad7's MixinExtras. Developers should be able to use the majority of the features added by both projects, however not everything is production ready yet.
+
+Early Access Warning
+The game Hytale is in early access. Things are unstable, and prone to frequent changes. Things may not work, or may work in unexpected or suboptimal ways. Please bear with us as we work to address the issues.
+
+Known Issues & Caveats
+Mixin configs can only be loaded from earlyplugins.
+We only scan the earlyplugins folder in the working directory for Hyxin configs. Additional paths can be added using run arguments, but we can not scan them yet.
+When developing Hyxin itself, files are loaded from the AppClassLoader instead of the expected early plugins URLClassLoader.
+Accessors, invokers, interface injection, and similar features are not production ready.
+The DisabledByDefault option, along with the disabled plugins feature is not supported.
+Installing Hyxin
+The Hyxin jar and all plugins that use Hyxin must go in your earlyplugins folder. You will need to create the folder, they do not create it for you yet. On a server, you will make the folder right next to the plugins and logs folders. In singleplayer your plugin must go inside of your world, in the worlds earlyplugins folder.
+
+Developing with Hyxin
+The Hyxin project is not aailable on Maven central yet. You can add it to your Gradle dependencies manually, or use Cursemaven.
+
+Add a Hyxin config to the standard plugin manifest.json file. The Configs array defines a list of Mixin configuration files that Hyxin will try to load from your plugin jar.
+
+{
+  "Group": "...",
+  "Name": "...",
+  "Version": "...",
+  "Description": "...",
+  "Hyxin": {
+    "Configs": [
+      "your_plugin.mixins.json"
+    ]
+  }
+}
+Inside the your_plugin.mixins.json file you should set the root package name that Mixin classes are loaded from, and then fill the mixins array witht he name of each class you want to load.
+
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.example.mixins",
+  "mixins": [
+    "ExampleMixin"
+  ]
+}
+Then define your mixin class at the expected location, in this case it is src/main/com/example/mixins/ExampleMixin.java. In this example, we are injecting our onMain method immediately before EarlyPluginLoaders#hasTransformers is invoked in the constructor of HytaleServer.
+
+@Mixin(HytaleServer.class)
+public class ExampleMixin {
+
+    @Inject(method = "<init>", at = @At(value = "INVOKE", target = "Lcom/hypixel/hytale/plugin/early/EarlyPluginLoader;hasTransformers()Z"))
+    private static void onMain(CallbackInfo ci) {
+        HytaleLogger.get("Hyxin-Example").at(Level.INFO).log("Hello from Hyxin! The server has been patched!");
+    }
+}
+Credits & Acknowledgements
+The Hyxin project is developed and maintained by Darkhax and Jaredlll08. The Hyxin project is built upon Mixin. Special thanks to Mumfrey in particular, who has poured countless hours of time into maintaining the project.
+
+Mixin - MIT License
+FabricMC Mixin - MIT License
+LlamaLad7's MixinExtras - MIT License
+Google's Guava - Apache 2.0 License
+OW2 ASM - 3-Clause BSD License
+Caro Asercion's Blender Icon - CC BY 3.0
+We are very appreciative of all the prior works that have made this project possible. All trademarks, copyrights, and ownership remain with their original authors. The inclusion of these libraries does not imply endorsement of this project by their creators or affiliated organizations.

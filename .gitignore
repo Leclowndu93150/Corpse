@@ -24,6 +24,7 @@ build/
 /bin/
 !**/src/main/**/bin/
 !**/src/test/**/bin/
+HytaleServer_decompiled
 
 ### VS Code ###
 /.vscode/

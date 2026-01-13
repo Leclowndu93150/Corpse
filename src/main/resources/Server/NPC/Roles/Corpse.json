@@ -1,0 +1,73 @@
+{
+  "Type": "Generic",
+  "Appearance": "Mannequin",
+  "MaxHealth": 1,
+  "Invulnerable": true,
+  "NameTranslationKey": "corpse.name",
+  "DefaultPlayerAttitude": "Neutral",
+  "DefaultNPCAttitude": "Ignore",
+  "MotionControllerList": [
+    {
+      "Type": "Walk"
+    }
+  ],
+  "Instructions": [
+    {
+      "Sensor": {
+        "Type": "Any"
+      },
+      "BodyMotion": {
+        "Type": "Nothing"
+      },
+      "HeadMotion": {
+        "Type": "Nothing"
+      }
+    }
+  ],
+  "InteractionInstruction": {
+    "Instructions": [
+      {
+        "Sensor": {
+          "Type": "Not",
+          "Sensor": {
+            "Type": "CanInteract",
+            "ViewSector": 180
+          }
+        },
+        "Actions": [
+          {
+            "Type": "SetInteractable",
+            "Interactable": false
+          }
+        ]
+      },
+      {
+        "Continue": true,
+        "Sensor": {
+          "Type": "Any"
+        },
+        "Actions": [
+          {
+            "Type": "SetInteractable",
+            "Interactable": true,
+            "ShowPrompt": true,
+            "Hint": "server.interactionHints.trade"
+          }
+        ]
+      },
+      {
+        "Sensor": {
+          "Type": "HasInteracted"
+        },
+        "Actions": [
+          {
+            "Type": "LockOnInteractionTarget"
+          },
+          {
+            "Type": "OpenCorpse"
+          }
+        ]
+      }
+    ]
+  }
+}

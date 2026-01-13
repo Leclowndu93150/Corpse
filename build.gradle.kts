@@ -12,12 +12,14 @@ repositories {
     maven("https://maven.hytale-modding.info/releases") {
         name = "HytaleModdingReleases"
     }
+    maven("https://cursemaven.com")
 }
 
 dependencies {
     compileOnly(libs.jetbrains.annotations)
     compileOnly(libs.jspecify)
 
+    implementation(files("libs/Hyxin-0.0.11-all.jar"))
     // this mod is optional, but is included so you can preview your mod icon
     // in the in-game mod list via the /modlist command
     runtimeOnly(libs.bettermodlist)
