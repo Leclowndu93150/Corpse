@@ -2,7 +2,9 @@ package com.leclowndu93150.corpse.window;
 
 import com.google.gson.JsonObject;
 import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.RemoveReason;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.protocol.packets.window.WindowAction;
 import com.hypixel.hytale.protocol.packets.window.WindowType;
 import com.hypixel.hytale.server.core.entity.entities.Player;
@@ -20,11 +22,14 @@ import java.util.List;
 import javax.annotation.Nonnull;
 
 public class CorpseWindow extends Window implements ItemContainerWindow {
+    private static final HytaleLogger LOGGER = HytaleLogger.get("CorpseWindow");
+
     private final JsonObject windowData;
     private final SimpleItemContainer itemContainer;
     private final CorpseManager corpseManager;
     private final String corpseId;
     private final CorpseData corpseData;
+    private boolean despawnScheduled = false;
 
     public CorpseWindow(@Nonnull CorpseManager corpseManager, @Nonnull String corpseId, @Nonnull CorpseData corpseData) {
         super(WindowType.Container);
@@ -84,8 +89,10 @@ public class CorpseWindow extends Window implements ItemContainerWindow {
 
     @Override
     protected void onClose0() {
-        if (isContainerEmpty()) {
-            corpseManager.removeCorpse(corpseId);
+        LOGGER.atInfo().log("[CorpseWindow] onClose0 called for corpseId: %s, isEmpty: %s, despawnScheduled: %s",
+            corpseId, isContainerEmpty(), despawnScheduled);
+        if (isContainerEmpty() && !despawnScheduled) {
+            scheduleDespawn();
         }
     }
 
@@ -97,6 +104,36 @@ public class CorpseWindow extends Window implements ItemContainerWindow {
             }
         }
         return true;
+    }
+
+    private void scheduleDespawn() {
+        LOGGER.atInfo().log("[CorpseWindow] scheduleDespawn called for corpseId: %s", corpseId);
+        if (despawnScheduled) {
+            LOGGER.atInfo().log("[CorpseWindow] Despawn already scheduled, returning");
+            return;
+        }
+        despawnScheduled = true;
+
+        // Get corpse entity and remove it immediately
+        Ref<EntityStore> corpseEntity = corpseManager.getCorpseEntity(corpseId);
+        LOGGER.atInfo().log("[CorpseWindow] Got corpseEntity: %s, isValid: %s",
+            corpseEntity, corpseEntity != null ? corpseEntity.isValid() : "null");
+        if (corpseEntity != null && corpseEntity.isValid()) {
+            Store<EntityStore> store = corpseEntity.getStore();
+
+            // Remove entity immediately
+            store.removeEntity(corpseEntity, RemoveReason.REMOVE);
+            LOGGER.atInfo().log("[CorpseWindow] Entity removed");
+
+            // Clean up our tracking
+            corpseManager.removeCorpseData(corpseId);
+            LOGGER.atInfo().log("[CorpseWindow] Corpse data removed");
+            return;
+        }
+
+        // Fallback: just remove corpse data if entity is invalid
+        LOGGER.atWarning().log("[CorpseWindow] Entity invalid, removing corpse data");
+        corpseManager.removeCorpse(corpseId);
     }
 
     @Override
@@ -111,9 +148,9 @@ public class CorpseWindow extends Window implements ItemContainerWindow {
         if (player == null) {
             return;
         }
-        if (isContainerEmpty()) {
+        if (isContainerEmpty() && !despawnScheduled) {
             close();
-            corpseManager.removeCorpse(corpseId);
+            scheduleDespawn();
         }
     }
 }

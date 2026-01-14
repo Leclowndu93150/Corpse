@@ -126,6 +126,17 @@ public class CorpseManager {
         save();
     }
 
+    /**
+     * Removes only the corpse tracking data without removing the entity.
+     * Use this when the entity will be removed by DespawnSystem.
+     */
+    public void removeCorpseData(@Nonnull String corpseId) {
+        corpses.remove(corpseId);
+        corpseEntities.remove(corpseId);
+        unregisterCorpseEntityUuid(corpseId);
+        save();
+    }
+
     public void removeCorpseWithStore(@Nonnull String corpseId, @Nonnull Store<EntityStore> store) {
         corpses.remove(corpseId);
         Ref<EntityStore> entityRef = corpseEntities.remove(corpseId);
