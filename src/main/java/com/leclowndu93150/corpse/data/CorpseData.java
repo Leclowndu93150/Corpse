@@ -17,8 +17,34 @@ public record CorpseData(
     List<SerializedItemStack> hotbarItems,
     List<SerializedItemStack> storageItems,
     List<SerializedItemStack> armorItems,
-    List<SerializedItemStack> utilityItems
+    List<SerializedItemStack> utilityItems,
+    UUID entityUuid
 ) {
+    // Constructor without entityUuid for backwards compatibility
+    public CorpseData(
+        String corpseId,
+        UUID ownerUuid,
+        String ownerName,
+        String worldName,
+        double x,
+        double y,
+        double z,
+        float yaw,
+        float pitch,
+        long createdAt,
+        List<SerializedItemStack> hotbarItems,
+        List<SerializedItemStack> storageItems,
+        List<SerializedItemStack> armorItems,
+        List<SerializedItemStack> utilityItems
+    ) {
+        this(corpseId, ownerUuid, ownerName, worldName, x, y, z, yaw, pitch, createdAt,
+             hotbarItems, storageItems, armorItems, utilityItems, null);
+    }
+
+    public CorpseData withEntityUuid(UUID newEntityUuid) {
+        return new CorpseData(corpseId, ownerUuid, ownerName, worldName, x, y, z, yaw, pitch,
+                              createdAt, hotbarItems, storageItems, armorItems, utilityItems, newEntityUuid);
+    }
     public boolean isEmpty() {
         return isListEmpty(hotbarItems) && isListEmpty(storageItems) && isListEmpty(armorItems) && isListEmpty(utilityItems);
     }

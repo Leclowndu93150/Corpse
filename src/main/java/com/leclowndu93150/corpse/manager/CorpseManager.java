@@ -16,6 +16,8 @@ import javax.annotation.Nullable;
 public class CorpseManager {
     private final Map<String, CorpseData> corpses = new ConcurrentHashMap<>();
     private final Map<String, Ref<EntityStore>> corpseEntities = new ConcurrentHashMap<>();
+    private final Map<String, UUID> corpseEntityUuids = new ConcurrentHashMap<>();
+    private final Map<UUID, String> corpseIdsByEntityUuid = new ConcurrentHashMap<>();
     private final DataManager dataManager;
     private final HytaleLogger logger;
     private boolean allowOtherPlayersToLoot;
@@ -29,6 +31,16 @@ public class CorpseManager {
     public void load() {
         corpses.clear();
         corpses.putAll(dataManager.loadCorpses());
+        corpseEntities.clear();
+        corpseEntityUuids.clear();
+        corpseIdsByEntityUuid.clear();
+        // Rebuild UUID mappings from saved data
+        for (CorpseData data : corpses.values()) {
+            if (data.entityUuid() != null) {
+                corpseEntityUuids.put(data.corpseId(), data.entityUuid());
+                corpseIdsByEntityUuid.put(data.entityUuid(), data.corpseId());
+            }
+        }
     }
 
     public void save() {
@@ -46,6 +58,22 @@ public class CorpseManager {
 
     public void unregisterCorpseEntity(@Nonnull String corpseId) {
         corpseEntities.remove(corpseId);
+        unregisterCorpseEntityUuid(corpseId);
+    }
+
+    public void registerCorpseEntityUuid(@Nonnull String corpseId, @Nonnull UUID entityUuid) {
+        UUID previous = corpseEntityUuids.put(corpseId, entityUuid);
+        if (previous != null && !previous.equals(entityUuid)) {
+            corpseIdsByEntityUuid.remove(previous);
+        }
+        corpseIdsByEntityUuid.put(entityUuid, corpseId);
+    }
+
+    public void unregisterCorpseEntityUuid(@Nonnull String corpseId) {
+        UUID previous = corpseEntityUuids.remove(corpseId);
+        if (previous != null) {
+            corpseIdsByEntityUuid.remove(previous);
+        }
     }
 
     @Nullable
@@ -77,9 +105,15 @@ public class CorpseManager {
         return null;
     }
 
+    @Nullable
+    public String findCorpseIdByEntityUuid(@Nonnull UUID entityUuid) {
+        return corpseIdsByEntityUuid.get(entityUuid);
+    }
+
     public void removeCorpse(@Nonnull String corpseId) {
         corpses.remove(corpseId);
         Ref<EntityStore> entityRef = corpseEntities.remove(corpseId);
+        unregisterCorpseEntityUuid(corpseId);
         if (entityRef != null) {
             try {
                 Store<EntityStore> store = entityRef.getStore();
@@ -95,6 +129,7 @@ public class CorpseManager {
     public void removeCorpseWithStore(@Nonnull String corpseId, @Nonnull Store<EntityStore> store) {
         corpses.remove(corpseId);
         Ref<EntityStore> entityRef = corpseEntities.remove(corpseId);
+        unregisterCorpseEntityUuid(corpseId);
         if (entityRef != null) {
             try {
                 store.removeEntity(entityRef, RemoveReason.REMOVE);

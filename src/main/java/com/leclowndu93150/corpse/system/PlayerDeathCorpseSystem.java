@@ -4,22 +4,27 @@ import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.component.dependency.Dependency;
+import com.hypixel.hytale.component.dependency.Order;
+import com.hypixel.hytale.component.dependency.SystemDependency;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.RefChangeSystem;
 import com.hypixel.hytale.function.consumer.TriConsumer;
 import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.protocol.PlayerSkin;
+import com.hypixel.hytale.server.core.asset.type.gameplay.DeathConfig;
 import com.hypixel.hytale.server.core.asset.type.model.config.Model;
 import com.hypixel.hytale.server.core.cosmetics.CosmeticsModule;
-import com.hypixel.hytale.server.core.entity.Frozen;
 import com.hypixel.hytale.server.core.entity.entities.Player;
+import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.inventory.Inventory;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
 import com.hypixel.hytale.server.core.modules.entity.component.HeadRotation;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.modules.entity.damage.DeathComponent;
+import com.hypixel.hytale.server.core.modules.entity.damage.DeathSystems;
 import com.hypixel.hytale.server.core.modules.entity.player.PlayerSkinComponent;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
@@ -35,6 +40,7 @@ import com.hypixel.hytale.logger.HytaleLogger;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
 import javax.annotation.Nonnull;
@@ -42,6 +48,13 @@ import javax.annotation.Nonnull;
 public class PlayerDeathCorpseSystem extends RefChangeSystem<EntityStore, DeathComponent> {
     private static final String CORPSE_ROLE_NAME = "Corpse";
     private static final HytaleLogger LOGGER = HytaleLogger.get("Corpse");
+    private static final float CORPSE_PITCH = (float) (Math.PI / 2.0);
+    private static final float CORPSE_YAW_OFFSET = (float) (-Math.PI / 2.0);
+    private static final float YAW_SNAP_STEP = (float) (Math.PI / 2.0);
+    private static final Set<Dependency<EntityStore>> DEPENDENCIES = Set.of(
+        new SystemDependency<>(Order.AFTER, DeathSystems.PlayerDropItemsConfig.class),
+        new SystemDependency<>(Order.BEFORE, DeathSystems.DropPlayerDeathItems.class)
+    );
     private final CorpseManager corpseManager;
     private final ComponentType<EntityStore, Player> playerComponentType;
 
@@ -63,12 +76,16 @@ public class PlayerDeathCorpseSystem extends RefChangeSystem<EntityStore, DeathC
     }
 
     @Override
+    @Nonnull
+    public Set<Dependency<EntityStore>> getDependencies() {
+        return DEPENDENCIES;
+    }
+
+    @Override
     public void onComponentAdded(@Nonnull Ref<EntityStore> ref, @Nonnull DeathComponent component,
                                   @Nonnull Store<EntityStore> store, @Nonnull CommandBuffer<EntityStore> commandBuffer) {
-        LOGGER.at(Level.INFO).log("onComponentAdded called - DeathComponent detected");
         PlayerRef playerRef = commandBuffer.getComponent(ref, PlayerRef.getComponentType());
         if (playerRef == null) {
-            LOGGER.at(Level.INFO).log("PlayerRef is null, skipping");
             return;
         }
         Player player = commandBuffer.getComponent(ref, Player.getComponentType());
@@ -82,6 +99,7 @@ public class PlayerDeathCorpseSystem extends RefChangeSystem<EntityStore, DeathC
         HeadRotation headRotation = commandBuffer.getComponent(ref, HeadRotation.getComponentType());
         Vector3d position = new Vector3d(transform.getPosition());
         Vector3f playerRotation = headRotation != null ? headRotation.getRotation() : new Vector3f(0, 0, 0);
+        float playerYaw = transform.getRotation().getYaw();
         World world = commandBuffer.getExternalData().getWorld();
         Inventory inventory = player.getInventory();
         if (inventory == null) {
@@ -92,13 +110,13 @@ public class PlayerDeathCorpseSystem extends RefChangeSystem<EntityStore, DeathC
         List<SerializedItemStack> armorItems = extractItems(inventory.getArmor());
         List<SerializedItemStack> utilityItems = extractItems(inventory.getUtility());
         if (isAllEmpty(hotbarItems) && isAllEmpty(storageItems) && isAllEmpty(armorItems) && isAllEmpty(utilityItems)) {
-            LOGGER.at(Level.INFO).log("All inventory slots empty, no corpse needed");
             return;
         }
-        LOGGER.at(Level.INFO).log("Player has items, creating corpse");
+        component.setItemsLossMode(DeathConfig.ItemsLossMode.NONE);
         String corpseId = UUID.randomUUID().toString();
         PlayerSkinComponent skinComponent = commandBuffer.getComponent(ref, PlayerSkinComponent.getComponentType());
         PlayerSkin playerSkin = skinComponent != null ? skinComponent.getPlayerSkin() : null;
+        float corpseYaw = snapYawToCardinal(playerYaw + CORPSE_YAW_OFFSET);
         CorpseData corpseData = new CorpseData(
             corpseId,
             playerRef.getUuid(),
@@ -107,7 +125,7 @@ public class PlayerDeathCorpseSystem extends RefChangeSystem<EntityStore, DeathC
             position.getX(),
             position.getY(),
             position.getZ(),
-            playerRotation.getY(),
+            corpseYaw,
             playerRotation.getX(),
             System.currentTimeMillis(),
             hotbarItems,
@@ -118,70 +136,61 @@ public class PlayerDeathCorpseSystem extends RefChangeSystem<EntityStore, DeathC
         corpseManager.addCorpse(corpseData);
         inventory.clear();
         world.execute(() -> {
-            spawnCorpseEntity(world, store, corpseId, position, playerRotation, playerSkin);
+            spawnCorpseEntity(world, store, corpseId, position, playerRotation, corpseYaw, playerSkin);
         });
     }
 
     private void spawnCorpseEntity(World world, Store<EntityStore> store, String corpseId,
-                                   Vector3d position, Vector3f playerRotation, PlayerSkin playerSkin) {
-        LOGGER.at(Level.INFO).log("Attempting to spawn corpse entity at %s", position);
+                                   Vector3d position, Vector3f playerRotation, float corpseYaw, PlayerSkin playerSkin) {
         NPCPlugin npcPlugin = NPCPlugin.get();
         if (npcPlugin == null) {
             LOGGER.at(Level.SEVERE).log("NPCPlugin is null!");
             return;
         }
         int roleIndex = npcPlugin.getIndex(CORPSE_ROLE_NAME);
-        LOGGER.at(Level.INFO).log("Role index for '%s': %d", CORPSE_ROLE_NAME, roleIndex);
         if (roleIndex < 0) {
-            LOGGER.at(Level.SEVERE).log("Role '%s' not found! Cannot spawn corpse.", CORPSE_ROLE_NAME);
+            LOGGER.at(Level.SEVERE).log("Role '%s' not found!", CORPSE_ROLE_NAME);
             return;
         }
-        Vector3f corpseRotation = new Vector3f(
-            (float)(Math.PI / 2.0),
-            playerRotation.getY(),
-            0.0f
-        );
+        Vector3f corpseRotation = new Vector3f(CORPSE_PITCH, corpseYaw, 0.0f);
         Model corpseModel = null;
         TriConsumer<NPCEntity, Ref<EntityStore>, Store<EntityStore>> skinApplyingFunction = null;
         if (playerSkin != null) {
-            LOGGER.at(Level.INFO).log("Player has skin, creating model");
             try {
                 corpseModel = CosmeticsModule.get().createModel(playerSkin);
                 if (corpseModel != null && corpseModel.getScale() <= 0.0f) {
-                    LOGGER.at(Level.WARNING).log("Model has invalid scale, using null model instead");
                     corpseModel = null;
                 }
             } catch (Exception e) {
-                LOGGER.at(Level.WARNING).withCause(e).log("Failed to create model from skin: %s", e.getMessage());
                 corpseModel = null;
             }
             final PlayerSkin skin = playerSkin;
             skinApplyingFunction = (npcEntity, entityStoreRef, entityStore) -> {
                 entityStore.putComponent(entityStoreRef, PlayerSkinComponent.getComponentType(), new PlayerSkinComponent(skin));
             };
-        } else {
-            LOGGER.at(Level.INFO).log("Player has no skin");
         }
         try {
-            LOGGER.at(Level.INFO).log("Calling npcPlugin.spawnEntity...");
             Pair<Ref<EntityStore>, NPCEntity> corpsePair = npcPlugin.spawnEntity(
-                store,
-                roleIndex,
-                position,
-                corpseRotation,
-                corpseModel,
-                skinApplyingFunction
+                store, roleIndex, position, corpseRotation, corpseModel, skinApplyingFunction
             );
             if (corpsePair != null) {
                 Ref<EntityStore> corpseRef = corpsePair.first();
-                store.ensureComponent(corpseRef, Frozen.getComponentType());
                 corpseManager.registerCorpseEntity(corpseId, corpseRef);
-                LOGGER.at(Level.INFO).log("Corpse entity spawned successfully! ID: %s", corpseId);
+                UUIDComponent uuidComponent = store.getComponent(corpseRef, UUIDComponent.getComponentType());
+                if (uuidComponent != null) {
+                    UUID entityUuid = uuidComponent.getUuid();
+                    corpseManager.registerCorpseEntityUuid(corpseId, entityUuid);
+                    CorpseData existingData = corpseManager.getCorpse(corpseId);
+                    if (existingData != null) {
+                        corpseManager.updateCorpse(existingData.withEntityUuid(entityUuid));
+                    }
+                }
+                LOGGER.at(Level.INFO).log("Corpse spawned for player at %s", position);
             } else {
-                LOGGER.at(Level.SEVERE).log("npcPlugin.spawnEntity returned null!");
+                LOGGER.at(Level.SEVERE).log("Failed to spawn corpse entity");
             }
         } catch (Exception e) {
-            LOGGER.at(Level.SEVERE).withCause(e).log("Exception spawning corpse entity: %s", e.getMessage());
+            LOGGER.at(Level.SEVERE).withCause(e).log("Exception spawning corpse: %s", e.getMessage());
         }
     }
 
@@ -202,6 +211,10 @@ public class PlayerDeathCorpseSystem extends RefChangeSystem<EntityStore, DeathC
             }
         }
         return true;
+    }
+
+    private float snapYawToCardinal(float yaw) {
+        return Math.round(yaw / YAW_SNAP_STEP) * YAW_SNAP_STEP;
     }
 
     @Override

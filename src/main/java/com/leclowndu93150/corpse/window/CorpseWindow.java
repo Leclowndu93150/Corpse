@@ -11,6 +11,7 @@ import com.hypixel.hytale.server.core.entity.entities.player.windows.Window;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
 import com.hypixel.hytale.server.core.inventory.container.SimpleItemContainer;
+import com.hypixel.hytale.server.core.inventory.container.filter.FilterType;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.leclowndu93150.corpse.data.CorpseData;
 import com.leclowndu93150.corpse.data.SerializedItemStack;
@@ -38,6 +39,7 @@ public class CorpseWindow extends Window implements ItemContainerWindow {
                        + getSlotCount(corpseData.utilityItems());
         this.itemContainer = new SimpleItemContainer((short) Math.max(totalSlots, 45));
         populateContainer();
+        this.itemContainer.setGlobalFilter(FilterType.ALLOW_OUTPUT_ONLY);
     }
 
     private int getSlotCount(List<SerializedItemStack> items) {
