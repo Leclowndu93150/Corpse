@@ -12,7 +12,6 @@ import com.leclowndu93150.corpse.manager.DataManager;
 import com.leclowndu93150.corpse.npc.BuilderActionOpenCorpse;
 import com.leclowndu93150.corpse.system.CorpsePoseSystem;
 import com.leclowndu93150.corpse.system.PlayerDeathCorpseSystem;
-import java.util.logging.Level;
 import javax.annotation.Nonnull;
 
 public class CorpsePlugin extends JavaPlugin {
@@ -27,14 +26,13 @@ public class CorpsePlugin extends JavaPlugin {
     @Override
     protected void setup() {
         CorpseConfig cfg = this.config.get();
-        this.dataManager = new DataManager(this.getDataDirectory(), this.getLogger());
-        this.corpseManager = new CorpseManager(this.dataManager, this.getLogger(), cfg.isAllowOtherPlayersToLoot());
+        this.dataManager = new DataManager(this.getDataDirectory());
+        this.corpseManager = new CorpseManager(this.dataManager, cfg.isAllowOtherPlayersToLoot());
         this.corpseManager.load();
         BuilderActionOpenCorpse.setCorpseManager(this.corpseManager);
         this.getEventRegistry().register((short)-9, LoadAssetEvent.class, event -> {
             if (NPCPlugin.get() != null) {
                 NPCPlugin.get().registerCoreComponentType("OpenCorpse", BuilderActionOpenCorpse::new);
-                this.getLogger().at(Level.INFO).log("Registered OpenCorpse action before NPC asset loading");
             }
         });
     }
@@ -43,7 +41,6 @@ public class CorpsePlugin extends JavaPlugin {
     protected void start() {
         this.getEntityStoreRegistry().registerSystem(new PlayerDeathCorpseSystem(this.corpseManager, Player.getComponentType()));
         this.getEntityStoreRegistry().registerSystem(new CorpsePoseSystem());
-        this.getLogger().at(Level.INFO).log("Corpse plugin loaded! Corpses are saved with chunks and persist across server restarts.");
     }
 
     @Override
@@ -52,5 +49,4 @@ public class CorpsePlugin extends JavaPlugin {
             this.corpseManager.save();
         }
     }
-    
 }

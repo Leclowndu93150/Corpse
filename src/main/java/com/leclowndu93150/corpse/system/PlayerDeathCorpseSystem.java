@@ -2,6 +2,7 @@ package com.leclowndu93150.corpse.system;
 
 import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.ComponentType;
+import com.hypixel.hytale.component.Holder;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.dependency.Dependency;
@@ -12,18 +13,19 @@ import com.hypixel.hytale.component.system.RefChangeSystem;
 import com.hypixel.hytale.function.consumer.TriConsumer;
 import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
-import com.hypixel.hytale.protocol.PlayerSkin;
+import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.asset.type.gameplay.DeathConfig;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.inventory.Inventory;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
+import com.hypixel.hytale.server.core.entity.nameplate.Nameplate;
+import com.hypixel.hytale.server.core.modules.entity.component.DisplayNameComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.HeadRotation;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.modules.entity.damage.DeathComponent;
 import com.hypixel.hytale.server.core.modules.entity.damage.DeathSystems;
-import com.hypixel.hytale.server.core.modules.entity.player.PlayerSkinComponent;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
@@ -34,18 +36,14 @@ import com.leclowndu93150.corpse.data.SerializedItemStack;
 import com.leclowndu93150.corpse.manager.CorpseManager;
 import it.unimi.dsi.fastutil.Pair;
 
-import com.hypixel.hytale.logger.HytaleLogger;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.logging.Level;
 import javax.annotation.Nonnull;
 
 public class PlayerDeathCorpseSystem extends RefChangeSystem<EntityStore, DeathComponent> {
     private static final String CORPSE_ROLE_NAME = "Corpse";
-    private static final HytaleLogger LOGGER = HytaleLogger.get("Corpse");
     private static final float CORPSE_PITCH = (float) (Math.PI / 2.0);
     private static final float CORPSE_YAW_OFFSET = (float) (-Math.PI / 2.0);
     private static final float YAW_SNAP_STEP = (float) (Math.PI / 2.0);
@@ -112,8 +110,7 @@ public class PlayerDeathCorpseSystem extends RefChangeSystem<EntityStore, DeathC
         }
         component.setItemsLossMode(DeathConfig.ItemsLossMode.NONE);
         String corpseId = UUID.randomUUID().toString();
-        PlayerSkinComponent skinComponent = commandBuffer.getComponent(ref, PlayerSkinComponent.getComponentType());
-        PlayerSkin playerSkin = skinComponent != null ? skinComponent.getPlayerSkin() : null;
+        String playerName = playerRef.getUsername();
         float corpseYaw = snapYawToCardinal(playerYaw + CORPSE_YAW_OFFSET);
         CorpseData corpseData = new CorpseData(
             corpseId,
@@ -134,35 +131,29 @@ public class PlayerDeathCorpseSystem extends RefChangeSystem<EntityStore, DeathC
         corpseManager.addCorpse(corpseData);
         inventory.clear();
         world.execute(() -> {
-            spawnCorpseEntity(world, store, corpseId, position, playerRotation, corpseYaw, playerSkin);
+            spawnCorpseEntity(world, store, corpseId, position, corpseYaw, playerName);
         });
     }
 
     private void spawnCorpseEntity(World world, Store<EntityStore> store, String corpseId,
-                                   Vector3d position, Vector3f playerRotation, float corpseYaw, PlayerSkin playerSkin) {
+                                   Vector3d position, float corpseYaw, String playerName) {
         NPCPlugin npcPlugin = NPCPlugin.get();
         if (npcPlugin == null) {
-            LOGGER.at(Level.SEVERE).log("NPCPlugin is null!");
             return;
         }
         int roleIndex = npcPlugin.getIndex(CORPSE_ROLE_NAME);
         if (roleIndex < 0) {
-            LOGGER.at(Level.SEVERE).log("Role '%s' not found!", CORPSE_ROLE_NAME);
             return;
         }
         Vector3f corpseRotation = new Vector3f(CORPSE_PITCH, corpseYaw, 0.0f);
-        // Don't pass player skin model directly - it causes serialization issues with scale -1
-        // Instead, apply skin component after spawn so the role's default model is used for persistence
-        TriConsumer<NPCEntity, Ref<EntityStore>, Store<EntityStore>> skinApplyingFunction = null;
-        if (playerSkin != null) {
-            final PlayerSkin skin = playerSkin;
-            skinApplyingFunction = (npcEntity, entityStoreRef, entityStore) -> {
-                entityStore.putComponent(entityStoreRef, PlayerSkinComponent.getComponentType(), new PlayerSkinComponent(skin));
-            };
-        }
+        String displayName = playerName + "'s Corpse";
+        TriConsumer<NPCEntity, Holder<EntityStore>, Store<EntityStore>> preAddToWorld = (npcEntity, holder, entityStore) -> {
+            holder.putComponent(DisplayNameComponent.getComponentType(), new DisplayNameComponent(Message.raw(displayName)));
+            holder.putComponent(Nameplate.getComponentType(), new Nameplate(displayName));
+        };
         try {
             Pair<Ref<EntityStore>, NPCEntity> corpsePair = npcPlugin.spawnEntity(
-                store, roleIndex, position, corpseRotation, null, skinApplyingFunction
+                store, roleIndex, position, corpseRotation, null, preAddToWorld, null
             );
             if (corpsePair != null) {
                 Ref<EntityStore> corpseRef = corpsePair.first();
@@ -176,12 +167,8 @@ public class PlayerDeathCorpseSystem extends RefChangeSystem<EntityStore, DeathC
                         corpseManager.updateCorpse(existingData.withEntityUuid(entityUuid));
                     }
                 }
-                LOGGER.at(Level.INFO).log("Corpse spawned for player at %s", position);
-            } else {
-                LOGGER.at(Level.SEVERE).log("Failed to spawn corpse entity");
             }
         } catch (Exception e) {
-            LOGGER.at(Level.SEVERE).withCause(e).log("Exception spawning corpse: %s", e.getMessage());
         }
     }
 

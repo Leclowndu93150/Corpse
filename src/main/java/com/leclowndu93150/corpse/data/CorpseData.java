@@ -20,7 +20,6 @@ public record CorpseData(
     List<SerializedItemStack> utilityItems,
     UUID entityUuid
 ) {
-    // Constructor without entityUuid for backwards compatibility
     public CorpseData(
         String corpseId,
         UUID ownerUuid,

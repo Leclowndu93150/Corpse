@@ -3,7 +3,6 @@ package com.leclowndu93150.corpse.manager;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.RemoveReason;
 import com.hypixel.hytale.component.Store;
-import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.entity.Entity;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.leclowndu93150.corpse.data.CorpseData;
@@ -19,12 +18,10 @@ public class CorpseManager {
     private final Map<String, UUID> corpseEntityUuids = new ConcurrentHashMap<>();
     private final Map<UUID, String> corpseIdsByEntityUuid = new ConcurrentHashMap<>();
     private final DataManager dataManager;
-    private final HytaleLogger logger;
     private boolean allowOtherPlayersToLoot;
 
-    public CorpseManager(@Nonnull DataManager dataManager, @Nonnull HytaleLogger logger, boolean allowOtherPlayersToLoot) {
+    public CorpseManager(@Nonnull DataManager dataManager, boolean allowOtherPlayersToLoot) {
         this.dataManager = dataManager;
-        this.logger = logger;
         this.allowOtherPlayersToLoot = allowOtherPlayersToLoot;
     }
 
@@ -34,7 +31,6 @@ public class CorpseManager {
         corpseEntities.clear();
         corpseEntityUuids.clear();
         corpseIdsByEntityUuid.clear();
-        // Rebuild UUID mappings from saved data
         for (CorpseData data : corpses.values()) {
             if (data.entityUuid() != null) {
                 corpseEntityUuids.put(data.corpseId(), data.entityUuid());
@@ -126,10 +122,6 @@ public class CorpseManager {
         save();
     }
 
-    /**
-     * Removes only the corpse tracking data without removing the entity.
-     * Use this when the entity will be removed by DespawnSystem.
-     */
     public void removeCorpseData(@Nonnull String corpseId) {
         corpses.remove(corpseId);
         corpseEntities.remove(corpseId);
