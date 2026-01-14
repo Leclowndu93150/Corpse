@@ -14,8 +14,6 @@ import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.protocol.PlayerSkin;
 import com.hypixel.hytale.server.core.asset.type.gameplay.DeathConfig;
-import com.hypixel.hytale.server.core.asset.type.model.config.Model;
-import com.hypixel.hytale.server.core.cosmetics.CosmeticsModule;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.inventory.Inventory;
@@ -153,17 +151,10 @@ public class PlayerDeathCorpseSystem extends RefChangeSystem<EntityStore, DeathC
             return;
         }
         Vector3f corpseRotation = new Vector3f(CORPSE_PITCH, corpseYaw, 0.0f);
-        Model corpseModel = null;
+        // Don't pass player skin model directly - it causes serialization issues with scale -1
+        // Instead, apply skin component after spawn so the role's default model is used for persistence
         TriConsumer<NPCEntity, Ref<EntityStore>, Store<EntityStore>> skinApplyingFunction = null;
         if (playerSkin != null) {
-            try {
-                corpseModel = CosmeticsModule.get().createModel(playerSkin);
-                if (corpseModel != null && corpseModel.getScale() <= 0.0f) {
-                    corpseModel = null;
-                }
-            } catch (Exception e) {
-                corpseModel = null;
-            }
             final PlayerSkin skin = playerSkin;
             skinApplyingFunction = (npcEntity, entityStoreRef, entityStore) -> {
                 entityStore.putComponent(entityStoreRef, PlayerSkinComponent.getComponentType(), new PlayerSkinComponent(skin));
@@ -171,7 +162,7 @@ public class PlayerDeathCorpseSystem extends RefChangeSystem<EntityStore, DeathC
         }
         try {
             Pair<Ref<EntityStore>, NPCEntity> corpsePair = npcPlugin.spawnEntity(
-                store, roleIndex, position, corpseRotation, corpseModel, skinApplyingFunction
+                store, roleIndex, position, corpseRotation, null, skinApplyingFunction
             );
             if (corpsePair != null) {
                 Ref<EntityStore> corpseRef = corpsePair.first();
