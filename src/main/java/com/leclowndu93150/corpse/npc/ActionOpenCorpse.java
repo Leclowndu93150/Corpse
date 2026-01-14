@@ -49,6 +49,9 @@ public class ActionOpenCorpse extends ActionBase {
             UUIDComponent uuidComponent = store.getComponent(ref, UUIDComponent.getComponentType());
             if (uuidComponent != null) {
                 corpseId = corpseManager.findCorpseIdByEntityUuid(uuidComponent.getUuid());
+                if (corpseId != null) {
+                    corpseManager.registerCorpseEntity(corpseId, ref);
+                }
             }
         }
         if (corpseId == null) {

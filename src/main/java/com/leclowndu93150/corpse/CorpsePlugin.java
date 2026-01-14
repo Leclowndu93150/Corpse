@@ -26,6 +26,7 @@ public class CorpsePlugin extends JavaPlugin {
     @Override
     protected void setup() {
         CorpseConfig cfg = this.config.get();
+        this.config.save();
         this.dataManager = new DataManager(this.getDataDirectory());
         this.corpseManager = new CorpseManager(this.dataManager, cfg.isAllowOtherPlayersToLoot());
         this.corpseManager.load();
