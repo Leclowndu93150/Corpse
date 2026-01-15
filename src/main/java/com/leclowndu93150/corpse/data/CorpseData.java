@@ -44,6 +44,16 @@ public record CorpseData(
         return new CorpseData(corpseId, ownerUuid, ownerName, worldName, x, y, z, yaw, pitch,
                               createdAt, hotbarItems, storageItems, armorItems, utilityItems, newEntityUuid);
     }
+
+    public CorpseData withItems(
+        List<SerializedItemStack> newHotbarItems,
+        List<SerializedItemStack> newStorageItems,
+        List<SerializedItemStack> newArmorItems,
+        List<SerializedItemStack> newUtilityItems
+    ) {
+        return new CorpseData(corpseId, ownerUuid, ownerName, worldName, x, y, z, yaw, pitch,
+                              createdAt, newHotbarItems, newStorageItems, newArmorItems, newUtilityItems, entityUuid);
+    }
     public boolean isEmpty() {
         return isListEmpty(hotbarItems) && isListEmpty(storageItems) && isListEmpty(armorItems) && isListEmpty(utilityItems);
     }

@@ -17,6 +17,7 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.leclowndu93150.corpse.data.CorpseData;
 import com.leclowndu93150.corpse.data.SerializedItemStack;
 import com.leclowndu93150.corpse.manager.CorpseManager;
+import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.Nonnull;
 
@@ -27,6 +28,10 @@ public class CorpseWindow extends Window implements ItemContainerWindow {
     private final String corpseId;
     private final CorpseData corpseData;
     private boolean despawnScheduled = false;
+    private final int hotbarCount;
+    private final int storageCount;
+    private final int armorCount;
+    private final int utilityCount;
 
     public CorpseWindow(@Nonnull CorpseManager corpseManager, @Nonnull String corpseId, @Nonnull CorpseData corpseData) {
         super(WindowType.Container);
@@ -35,10 +40,11 @@ public class CorpseWindow extends Window implements ItemContainerWindow {
         this.corpseData = corpseData;
         this.windowData = new JsonObject();
         this.windowData.addProperty("title", corpseData.ownerName() + "'s Corpse");
-        int totalSlots = getSlotCount(corpseData.hotbarItems())
-                       + getSlotCount(corpseData.storageItems())
-                       + getSlotCount(corpseData.armorItems())
-                       + getSlotCount(corpseData.utilityItems());
+        this.hotbarCount = getSlotCount(corpseData.hotbarItems());
+        this.storageCount = getSlotCount(corpseData.storageItems());
+        this.armorCount = getSlotCount(corpseData.armorItems());
+        this.utilityCount = getSlotCount(corpseData.utilityItems());
+        int totalSlots = hotbarCount + storageCount + armorCount + utilityCount;
         this.itemContainer = new SimpleItemContainer((short) Math.max(totalSlots, 45));
         populateContainer();
         this.itemContainer.setGlobalFilter(FilterType.ALLOW_OUTPUT_ONLY);
@@ -88,7 +94,28 @@ public class CorpseWindow extends Window implements ItemContainerWindow {
     protected void onClose0() {
         if (isContainerEmpty() && !despawnScheduled) {
             scheduleDespawn();
+        } else if (!despawnScheduled) {
+            saveRemainingItems();
         }
+    }
+
+    private void saveRemainingItems() {
+        List<SerializedItemStack> newHotbar = extractItemsFromContainer(0, hotbarCount);
+        List<SerializedItemStack> newStorage = extractItemsFromContainer(hotbarCount, storageCount);
+        List<SerializedItemStack> newArmor = extractItemsFromContainer(hotbarCount + storageCount, armorCount);
+        List<SerializedItemStack> newUtility = extractItemsFromContainer(hotbarCount + storageCount + armorCount, utilityCount);
+
+        CorpseData updatedCorpse = corpseData.withItems(newHotbar, newStorage, newArmor, newUtility);
+        corpseManager.updateCorpse(updatedCorpse);
+    }
+
+    private List<SerializedItemStack> extractItemsFromContainer(int startSlot, int count) {
+        List<SerializedItemStack> items = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            ItemStack stack = itemContainer.getItemStack((short) (startSlot + i));
+            items.add(SerializedItemStack.fromItemStack(stack));
+        }
+        return items;
     }
 
     private boolean isContainerEmpty() {

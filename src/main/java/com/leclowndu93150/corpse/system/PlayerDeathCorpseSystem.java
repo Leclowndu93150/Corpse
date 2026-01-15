@@ -130,6 +130,11 @@ public class PlayerDeathCorpseSystem extends RefChangeSystem<EntityStore, DeathC
         );
         corpseManager.addCorpse(corpseData);
         inventory.clear();
+
+        String locationMessage = String.format("A corpse has been created at: X: %.0f, Y: %.0f, Z: %.0f",
+            position.getX(), position.getY(), position.getZ());
+        player.sendMessage(Message.raw(locationMessage));
+
         world.execute(() -> {
             spawnCorpseEntity(world, store, corpseId, position, corpseYaw, playerName);
         });
