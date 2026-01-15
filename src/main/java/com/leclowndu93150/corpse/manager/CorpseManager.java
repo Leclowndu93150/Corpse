@@ -19,10 +19,14 @@ public class CorpseManager {
     private final Map<UUID, String> corpseIdsByEntityUuid = new ConcurrentHashMap<>();
     private final DataManager dataManager;
     private boolean allowOtherPlayersToLoot;
+    private boolean enableLootableByAnyoneAfterSeconds;
+    private int lootableByAnyoneAfterSeconds;
 
-    public CorpseManager(@Nonnull DataManager dataManager, boolean allowOtherPlayersToLoot) {
+    public CorpseManager(@Nonnull DataManager dataManager, boolean allowOtherPlayersToLoot, boolean enableLootableByAnyoneAfterSeconds, int lootableByAnyoneAfterSeconds) {
         this.dataManager = dataManager;
         this.allowOtherPlayersToLoot = allowOtherPlayersToLoot;
+        this.enableLootableByAnyoneAfterSeconds = enableLootableByAnyoneAfterSeconds;
+        this.lootableByAnyoneAfterSeconds = lootableByAnyoneAfterSeconds;
     }
 
     public void load() {
@@ -151,11 +155,25 @@ public class CorpseManager {
         if (allowOtherPlayersToLoot) {
             return true;
         }
-        return playerUuid.equals(corpse.ownerUuid());
+        if (playerUuid.equals(corpse.ownerUuid())) {
+            return true;
+        }
+        if (enableLootableByAnyoneAfterSeconds && lootableByAnyoneAfterSeconds > 0) {
+            long ageMs = System.currentTimeMillis() - corpse.createdAt();
+            long ageSeconds = ageMs / 1000;
+            if (ageSeconds >= lootableByAnyoneAfterSeconds) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void setAllowOtherPlayersToLoot(boolean allow) {
         this.allowOtherPlayersToLoot = allow;
+    }
+
+    public void setLootableByAnyoneAfterSeconds(int seconds) {
+        this.lootableByAnyoneAfterSeconds = seconds;
     }
 
     public Map<String, CorpseData> getAllCorpses() {

@@ -46,6 +46,8 @@ public class CorpsePlugin extends JavaPlugin {
     private DataManager dataManager;
     private CorpseManager corpseManager;
     private ScheduledExecutorService cleanupScheduler;
+    private boolean enableDespawnAfterSeconds;
+    private int despawnAfterSeconds;
 
     public CorpsePlugin(@Nonnull JavaPluginInit init) {
         super(init);
@@ -56,7 +58,9 @@ public class CorpsePlugin extends JavaPlugin {
         CorpseConfig cfg = this.config.get();
         this.config.save();
         this.dataManager = new DataManager(this.getDataDirectory());
-        this.corpseManager = new CorpseManager(this.dataManager, cfg.isAllowOtherPlayersToLoot());
+        this.enableDespawnAfterSeconds = cfg.isEnableDespawnAfterSeconds();
+        this.despawnAfterSeconds = cfg.getDespawnAfterSeconds();
+        this.corpseManager = new CorpseManager(this.dataManager, cfg.isAllowOtherPlayersToLoot(), cfg.isEnableLootableByAnyoneAfterSeconds(), cfg.getLootableByAnyoneAfterSeconds());
         this.corpseManager.load();
         BuilderActionOpenCorpse.setCorpseManager(this.corpseManager);
         this.getEventRegistry().register((short)-9, LoadAssetEvent.class, event -> {
@@ -163,6 +167,15 @@ public class CorpsePlugin extends JavaPlugin {
                             if (corpseData == null || corpseData.isEmpty()) {
                                 toRemove.add(ref);
                                 if (corpseData != null) {
+                                    this.corpseManager.removeCorpseData(corpseId);
+                                }
+                                continue;
+                            }
+                            if (enableDespawnAfterSeconds && despawnAfterSeconds > 0) {
+                                long ageMs = System.currentTimeMillis() - corpseData.createdAt();
+                                long ageSeconds = ageMs / 1000;
+                                if (ageSeconds >= despawnAfterSeconds) {
+                                    toRemove.add(ref);
                                     this.corpseManager.removeCorpseData(corpseId);
                                 }
                             }
